@@ -3,6 +3,7 @@ package me.naturs.lrc.library;
 import android.os.SystemClock;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 import java.util.TreeMap;
 
@@ -17,14 +18,14 @@ class Lyric {
     private ArrayList<Integer> lrcTimeList;
 
     private int currentTime;
-    private int currentIndex = -1;
+    private int currentIndex = 0;
 
     Lyric() {
         lrcMap = new TreeMap<>();
         lrcTimeList = new ArrayList<>(50);
 
         Random random = new Random();
-        for (int i = 0; i < 200; i ++) {
+        for (int i = 0; i < 50; i ++) {
             int key = random.nextInt(1000) + 200;
             Sentence sentence = new Sentence(key, randromStr(random));
             lrcMap.put(key,  sentence);
@@ -78,8 +79,13 @@ class Lyric {
         return lrcMap.get(lrcTimeList.get(index)).getLrc();
     }
 
-    void initSentence() {
+    Sentence getSentence(int index) {
+        return lrcMap.get(lrcTimeList.get(index));
+    }
 
+    void update(int index, int line, float textHeight, List<String> splitLrc) {
+        Sentence sentence = lrcMap.get(lrcTimeList.get(index));
+        sentence.update(line, textHeight, splitLrc);
     }
 
 }

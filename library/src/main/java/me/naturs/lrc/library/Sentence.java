@@ -1,5 +1,8 @@
 package me.naturs.lrc.library;
 
+import java.util.Arrays;
+import java.util.List;
+
 /**
  *
  * Created by naturs on 2016/3/6.
@@ -8,41 +11,38 @@ class Sentence {
 
     private int startTime;
     private String lrc;
+    private String[] splitLrc;
     private int line;
-    private int textHeight;
+    private float textHeight;
 
-    private boolean inited;
-
-    public Sentence(int startTime, String lrc) {
+    Sentence(int startTime, String lrc) {
         this.startTime = startTime;
         this.lrc = lrc;
     }
 
-    public int getStartTime() {
+    int getStartTime() {
         return startTime;
     }
 
-    public String getLrc() {
+    String getLrc() {
         return lrc;
     }
 
-    public int getLine() {
+    int getLine() {
         return line;
     }
 
-    public int getTextHeight() {
+    float getTextHeight() {
         return textHeight;
     }
 
-    public void setLine(int line) {
+    void update(int line, float textHeight, List<String> splitLrc) {
         this.line = line;
-    }
-
-    public void setTextHeight(int textHeight) {
         this.textHeight = textHeight;
+        this.splitLrc = splitLrc.toArray(new String[splitLrc.size()]);
     }
 
-    public boolean isInited() {
-        return inited;
+    String getSplitLrc(int index) {
+        return splitLrc[index];
     }
 }

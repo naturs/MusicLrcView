@@ -37,7 +37,6 @@ public class LrcView extends View {
     private float mCenterY;
 
     private List<String> mTempList = new ArrayList<>();
-    private int mCurrentLine;
 
     public LrcView(Context context) {
         this(context, null);
@@ -72,11 +71,13 @@ public class LrcView extends View {
         postDelayed(new Runnable() {
             @Override
             public void run() {
+                int oldIndex = mLyric.getCurrentIndex();
                 mLyric.newTime();
-                newLineAnim();
+                int newIndex = mLyric.getCurrentIndex();
+                newLineAnim(oldIndex, newIndex);
                 postDelayed(this, 2000);
             }
-        }, 1000);
+        }, 3000);
     }
 
     @Override
@@ -86,10 +87,13 @@ public class LrcView extends View {
         mViewHeight = h;
         mCenterX = w * 0.5f;
         mCenterY = h * 0.5f;
+
+        initLrc();
     }
 
     @Override
     protected void onDraw(Canvas canvas) {
+        long start = System.currentTimeMillis();
         super.onDraw(canvas);
 
         canvas.drawLine(0, getCenterY(), mViewWidth, getCenterY(), mCurrentPaint);
@@ -110,12 +114,10 @@ public class LrcView extends View {
 
         // draw current
         if (currentIndex >= 0) {
-            currentTextLine = drawText(canvas, mCurrentPaint, mLyric.getLrc(currentIndex), currY);
+            currentTextLine = drawText(canvas, mCurrentPaint, currentIndex, currY);
         } else {
             currentTextLine = 0;
         }
-
-        mCurrentLine = currentTextLine;
 
         // draw before
         // 当前行的高度可能和其他行不一样，特别处理
@@ -126,7 +128,7 @@ public class LrcView extends View {
             }
             // 移动到要draw的那行的底部
             currY -= textHeight + mDividerHeight;
-            line = drawText(canvas, mNormalPaint, mLyric.getLrc(i), currY);
+            line = drawText(canvas, mNormalPaint, i, currY);
             textHeight = getNormalTextHeight() * line + mLrcDividerHeight * (line - 1);
         }
 
@@ -142,31 +144,47 @@ public class LrcView extends View {
             }
             // 移动到要draw的那行的底部
             currY += textHeight + mDividerHeight;
-            line = drawText(canvas, mNormalPaint, mLyric.getLrc(i), currY);
+            line = drawText(canvas, mNormalPaint, i, currY);
             textHeight = getNormalTextHeight() * line + mLrcDividerHeight * (line - 1);
         }
 
         canvas.clipRect(0, 0, mViewWidth, mViewHeight);
+//        print("draw 耗时：" + (System.currentTimeMillis() - start));
     }
 
-    @Override
-    public boolean onTouchEvent(MotionEvent event) {
-        return super.onTouchEvent(event);
-    }
+
 
     private float getCenterY() {
         return mCenterY + mAnimOffset;
     }
 
-    private int drawText(Canvas canvas, Paint paint, String text, float baseY) {
-        if (text == null) {
-            text = "";
+    private int drawText(Canvas canvas, Paint paint, int index, float baseY) {
+        Sentence sentence = mLyric.getSentence(index);
+        int line = sentence.getLine();
+        String str;
+        for (int i = 0; i < line; i++) {
+            str = sentence.getSplitLrc(i);
+            if (baseY < getCenterY()) {
+                // 画当前行上面的部分
+                canvas.drawText(
+                        str,
+                        getTextDrawBaseX(paint),
+                        getTextDrawBaseY(paint, baseY - (line - 1 - i) * (getTextHeight(paint, str) + mLrcDividerHeight)),
+                        paint);
+            } else {
+                // 画当前行以及下面的部分
+                canvas.drawText(
+                        str,
+                        getTextDrawBaseX(paint),
+                        getTextDrawBaseY(paint, baseY + i * (getTextHeight(paint, str) + mLrcDividerHeight)),
+                        paint);
+            }
         }
+        return line;
+    }
 
-        float allowMaxWidth = mViewWidth - getPaddingLeft() - getPaddingRight();
-
-        mTempList.clear();
-        splitLrc(paint, text, allowMaxWidth, mTempList);
+    private int drawText(Canvas canvas, Paint paint, String text, float baseY) {
+        splitStr(paint, text, mTempList);
         int line = mTempList.size();
 
         String str;
@@ -190,6 +208,17 @@ public class LrcView extends View {
         }
         mTempList.clear();
         return line;
+    }
+
+    private void splitStr(Paint paint, String text, List<String> list) {
+        if (text == null) {
+            text = "";
+        }
+
+        float allowMaxWidth = mViewWidth - getPaddingLeft() - getPaddingRight();
+
+        list.clear();
+        splitLrc(paint, text, allowMaxWidth, list);
     }
 
     private void splitLrc(Paint paint, String text, float allowMaxWidth, List<String> list) {
@@ -231,8 +260,32 @@ public class LrcView extends View {
         return paint.getTextSize();
     }
 
-    private void newLineAnim() {
-        ValueAnimator animator = ValueAnimator.ofFloat((mCurrentLine - 1) * (getCurrentTextHeight() + mLrcDividerHeight) + mDividerHeight + getNormalTextHeight(), 0.0f);
+    private void initLrc() {
+        long start = System.currentTimeMillis();
+        if (mLyric == null || mLyric.isEmpty()) {
+            return;
+        }
+        int size = mLyric.size();
+        int line;
+        float textHeight;
+        float baseY = 0;
+        for (int i = 0; i < size; i++) {
+//            print("i=" + mLyric.getLrc(i));
+            mTempList.clear();
+            splitStr(mNormalPaint, mLyric.getLrc(i), mTempList);
+            line = mTempList.size();
+            textHeight = line * getNormalTextHeight() + (line - 1) * mLrcDividerHeight;
+            mLyric.update(i, line, baseY, mTempList);
+            baseY += (line - 1) * (getNormalTextHeight() + mLrcDividerHeight) + mDividerHeight
+                    + getNormalTextHeight();
+        }
+        mTempList.clear();
+        print("耗时：" + (System.currentTimeMillis() - start));
+    }
+
+    private void newLineAnim(int oldIndex, int newIndex) {
+        print("newLineAnim:" + getDistance(oldIndex, newIndex));
+        ValueAnimator animator = ValueAnimator.ofFloat(getDistance(oldIndex, newIndex), 0);
         animator.setDuration(500);
         animator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
@@ -242,6 +295,11 @@ public class LrcView extends View {
             }
         });
         animator.start();
+    }
+
+    private float getDistance(int oldIndex, int newIndex) {
+//        int oldLine
+        return mLyric.getSentence(newIndex).getTextHeight() - mLyric.getSentence(oldIndex).getTextHeight();
     }
 
     private float mAnimOffset;
