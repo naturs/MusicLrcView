@@ -83,9 +83,13 @@ class Lyric {
         return lrcMap.get(lrcTimeList.get(index));
     }
 
-    void update(int index, int line, float textHeight, List<String> splitLrc) {
+    void update(int index, int line, float baseY, String[] splitLrc) {
         Sentence sentence = lrcMap.get(lrcTimeList.get(index));
-        sentence.update(line, textHeight, splitLrc);
+        sentence.update(line, baseY, splitLrc);
+    }
+
+    float getDistance(int oldIndex, int newIndex) {
+        return getSentence(newIndex).getBaseY() - getSentence(oldIndex).getBaseY();
     }
 
 }

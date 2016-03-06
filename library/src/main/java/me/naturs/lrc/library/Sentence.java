@@ -1,8 +1,5 @@
 package me.naturs.lrc.library;
 
-import java.util.Arrays;
-import java.util.List;
-
 /**
  *
  * Created by naturs on 2016/3/6.
@@ -13,7 +10,7 @@ class Sentence {
     private String lrc;
     private String[] splitLrc;
     private int line;
-    private float textHeight;
+    private float baseY;
 
     Sentence(int startTime, String lrc) {
         this.startTime = startTime;
@@ -32,14 +29,14 @@ class Sentence {
         return line;
     }
 
-    float getTextHeight() {
-        return textHeight;
+    float getBaseY() {
+        return baseY;
     }
 
-    void update(int line, float textHeight, List<String> splitLrc) {
+    void update(int line, float baseY, String[] splitLrc) {
         this.line = line;
-        this.textHeight = textHeight;
-        this.splitLrc = splitLrc.toArray(new String[splitLrc.size()]);
+        this.baseY = baseY;
+        this.splitLrc = splitLrc;
     }
 
     String getSplitLrc(int index) {
