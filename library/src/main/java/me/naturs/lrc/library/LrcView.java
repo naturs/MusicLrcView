@@ -8,9 +8,10 @@ import android.content.res.TypedArray;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.os.Handler;
+import android.os.Message;
 import android.support.annotation.StringRes;
 import android.support.v4.view.GestureDetectorCompat;
-import android.support.v4.view.MotionEventCompat;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
@@ -22,6 +23,7 @@ import android.view.View;
 import android.view.ViewConfiguration;
 
 import java.io.InputStream;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeMap;
@@ -79,6 +81,8 @@ public class LrcView extends View {
     private List<String> mTempList = new ArrayList<>();
 
     private GestureDetectorCompat mGestureDetector;
+
+    private Handler mHandler;
 
     public LrcView(Context context) {
         this(context, null);
@@ -138,6 +142,7 @@ public class LrcView extends View {
         mEmptyPaint.setTextAlign(Paint.Align.CENTER);
 
         mGestureDetector = new GestureDetectorCompat(context, new LrcGestureListener(context));
+        mHandler = new LrcHandler(this);
     }
 
     @Override
@@ -217,13 +222,27 @@ public class LrcView extends View {
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
-        return mGestureDetector.onTouchEvent(event);
+        boolean result = mGestureDetector.onTouchEvent(event);
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                mTouchEventOver = true;
+                break;
+        }
+        return result;
     }
 
     private float getCenterY() {
         float y = mCenterY;
 
-        return delta + delta1 + mCenterY + (delta == 0 ? mCenterDrawOffset : 0);
+        if (mGestureScrolling) {
+            y += mScrollDistance;
+            y += mLrcIndexDistance;
+        } else {
+            y += mCenterDrawOffset;
+        }
+
+        return y;
     }
 
     private int drawText(Canvas canvas, Paint paint, String text, float baseY) {
@@ -319,15 +338,13 @@ public class LrcView extends View {
     /**
      * 使用动画效果过渡到新的歌词行
      */
-    private float newLineWithAnimation(int oldIndex, int newIndex) {
+    private void newLineWithAnimation(float distance) {
         if (mLyric == null) {
-            return 0;
+            return;
         }
         if (mScrollAnimator != null && mScrollAnimator.isRunning()) {
             mScrollAnimator.end();
         }
-
-        float distance = mLyric.getDistance(oldIndex, newIndex);
 
         mScrollAnimator = ValueAnimator.ofFloat(distance, 0);
         mScrollAnimator.setDuration(500);
@@ -346,13 +363,14 @@ public class LrcView extends View {
             }
         });
         mScrollAnimator.start();
+    }
 
-        return distance;
+    private float getDistance(int oldIndex, int newIndex) {
+        return mLyric.getDistance(oldIndex, newIndex);
     }
 
     private void initLrcInternal() {
         long start = System.currentTimeMillis();
-
 
         if (mLyric == null || mLyric.isEmpty()) {
             mNeedInitLrc = false;
@@ -392,6 +410,17 @@ public class LrcView extends View {
         mLyric.clear();
         mLyric.add(lrc);
         mNeedInitLrc = true;
+    }
+
+    /**
+     * scroll完成后移除掉相关数据
+     */
+    private void removeScroll() {
+        mGestureScrolling = false;
+        newLineWithAnimation(mScrollDistance + mLrcIndexDistance);
+        print("removeScroll，mLrcIndexDistance：" + mLrcIndexDistance + " mScrollDistance：" + mScrollDistance);
+        mScrollDistance = 0;
+        mLrcIndexDistance = 0;
     }
 
     public void setLrc(final String filePath) {
@@ -457,17 +486,36 @@ public class LrcView extends View {
         if (mLyric == null || mLyric.isEmpty() || mNeedInitLrc) {
             return;
         }
+
+        /*
+         * 为什么不在ACTION_UP、ACTION_CANCEL的地方移除scroll数据？
+         * 因为如果是这样，在歌曲暂停的时候，scroll歌词，抬起手指，歌词n秒后
+         * 会自动复位，这样不符合暂停时的操作，所以在update操作中处理，
+         * 有update操作代表歌曲没有暂停。
+         */
+        if (mTouchEventOver) {
+            // n秒后移除scroll数据
+            if (mGestureScrolling && !mHandler.hasMessages(WHAT_REMOVE_SCROLL)) {
+                mHandler.sendEmptyMessageDelayed(WHAT_REMOVE_SCROLL, TIME_REMOVE_SCROLL);
+            }
+        }
+
         int oldIndex = mLyric.getCurrentIndex();
 
         // 如果当前歌词没变会返回false
         if (mLyric.update(millisecond)) {
             int newIndex = mLyric.getCurrentIndex();
-            delta1 += newLineWithAnimation(oldIndex, newIndex);
+            float distance = getDistance(oldIndex, newIndex);
+            if (mGestureScrolling) {
+                mLrcIndexDistance += distance;
+                invalidate();
+            } else {
+                newLineWithAnimation(distance);
+            }
         }
     }
 
     // ================== 更新UI属性的方法 =================== //
-
 
     public void setDividerHeight(float dividerHeight) {
         mDividerHeight = dividerHeight;
@@ -512,12 +560,35 @@ public class LrcView extends View {
         Log.d(TAG, message);
     }
 
-    private float delta;
-    private float delta1;
+    /**
+     * 移除scroll数据
+     */
+    private static final int WHAT_REMOVE_SCROLL = 1;
+    /**
+     * 移除scroll数据的延时
+     */
+    private static final long TIME_REMOVE_SCROLL = 3000;
 
+    /**
+     * scroll的总距离
+     */
+    private float mScrollDistance;
+    /**
+     * scroll的时候，歌词自动移动的距离
+     */
+    private float mLrcIndexDistance;
+
+    /**
+     * 是否正在手动滚动屏幕
+     */
+    private boolean mGestureScrolling = false;
+    /**
+     * 手指是否抬起了
+     */
+    private boolean mTouchEventOver;
 
     private class LrcGestureListener implements GestureDetector.OnGestureListener {
-        private  boolean first;
+        private boolean mScrollFirst;
 
         private final int mTouchSlop;
 
@@ -528,8 +599,10 @@ public class LrcView extends View {
 
         @Override
         public boolean onDown(MotionEvent e) {
-//            delta = 0;
-            first = true;
+            mScrollFirst = true;
+            mTouchEventOver = false;
+            // scroll后抬起手指，然后马上再次scroll
+            mHandler.removeMessages(WHAT_REMOVE_SCROLL);
             return true;
         }
 
@@ -546,10 +619,10 @@ public class LrcView extends View {
 
         @Override
         public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
-
-            if (first) {
-                print("first onScroll :" + distanceY);
-                first = false;
+            mGestureScrolling = true;
+            if (mScrollFirst) {
+                print("mScrollFirst onScroll :" + distanceY + " " + mTouchSlop);
+                mScrollFirst = false;
                 if (distanceY > 0) { // 向上
                     if (distanceY > mTouchSlop) {
                         distanceY = distanceY - mTouchSlop;
@@ -559,11 +632,10 @@ public class LrcView extends View {
                         distanceY = mTouchSlop - Math.abs(distanceY);
                     }
                 }
-//                return true;
             }
-            delta += -distanceY;
+            mScrollDistance += -distanceY;
+//            print("mScrollDistance:" + mScrollDistance);
             invalidate();
-//            print("onScroll：" + (distanceY ) );
             return true;
         }
 
@@ -578,4 +650,27 @@ public class LrcView extends View {
         }
     }
 
+    private static class LrcHandler extends Handler {
+
+        private WeakReference<LrcView> viewReference;
+
+        public LrcHandler(LrcView view) {
+            viewReference = new WeakReference<>(view);
+        }
+
+        @Override
+        public void handleMessage(Message msg) {
+            LrcView view = viewReference.get();
+            if (view == null) {
+                return;
+            }
+            switch (msg.what) {
+                case WHAT_REMOVE_SCROLL:
+                    view.removeScroll();
+                    break;
+            }
+        }
+
+
+    }
 }
