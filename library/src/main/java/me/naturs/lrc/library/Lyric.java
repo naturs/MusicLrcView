@@ -1,10 +1,7 @@
 package me.naturs.lrc.library;
 
-import android.os.SystemClock;
-
 import java.util.ArrayList;
-import java.util.List;
-import java.util.Random;
+import java.util.Map;
 import java.util.TreeMap;
 
 /**
@@ -13,9 +10,9 @@ import java.util.TreeMap;
  */
 class Lyric {
 
-    private TreeMap<Integer, Sentence> lrcMap;
+    private final TreeMap<Integer, Sentence> lrcMap;
 
-    private ArrayList<Integer> lrcTimeList;
+    private final ArrayList<Integer> lrcTimeList;
 
     private int currentTime;
     private int currentIndex = 0;
@@ -23,39 +20,33 @@ class Lyric {
     Lyric() {
         lrcMap = new TreeMap<>();
         lrcTimeList = new ArrayList<>(50);
+    }
 
-        Random random = new Random();
-        for (int i = 0; i < 50; i ++) {
-            int key = random.nextInt(1000) + 200;
-            Sentence sentence = new Sentence(key, randromStr(random));
-            lrcMap.put(key,  sentence);
+    void add(Map<Integer, String> lrc) {
+        if (lrc == null) {
+            return;
+        }
+        int time;
+        for (Map.Entry<Integer, String> entry : lrc.entrySet()) {
+            time = entry.getKey();
+            lrcMap.put(time, new Sentence(time, entry.getValue()));
         }
         lrcTimeList.addAll(lrcMap.keySet());
     }
 
-    String randromStr(Random random) {
-        int len = random.nextInt(100) + 10;
-        StringBuilder sb = new StringBuilder();
-        for (int i=0;i<len;i++) {
-            sb.append((char)(random.nextInt(130) + 1));
-        }
-        return sb.toString();
-    }
-
-    void newTime() {
-        currentIndex ++;
-        currentTime = lrcTimeList.get(currentIndex);
+    void clear() {
+        lrcMap.clear();
+        lrcTimeList.clear();
+        currentTime = 0;
+        currentIndex = 0;
     }
 
     boolean isEmpty() {
         return lrcMap.isEmpty();
     }
 
-    void update(int time) {
-//        int nextTime = lrcMap.lastKey();
-//        if (time < nextTime) {
-//            nextTime = lrcMap.higherKey(time);
-//        }
+    boolean update(int time) {
+        final int oldCurrentTime = currentTime;
         if (lrcMap.containsKey(time)) {
             currentTime = time;
         } else {
@@ -64,7 +55,11 @@ class Lyric {
                 currentTime = lrcMap.floorKey(time);
             }
         }
-        currentIndex = lrcTimeList.indexOf(currentTime);
+        if (oldCurrentTime != currentTime) {
+            currentIndex = lrcTimeList.indexOf(currentTime);
+            return true;
+        }
+        return false;
     }
 
     int getCurrentIndex() {

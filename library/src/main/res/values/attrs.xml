@@ -6,5 +6,8 @@
         <attr name="lrc_current_text_color" format="color" />
         <attr name="lrc_divider_height" format="dimension" />
         <attr name="lrc_inter_divider_height" format="dimension" />
+        <attr name="lrc_empty_text" format="string|reference" />
+        <attr name="lrc_empty_text_color" format="color" />
+        <attr name="lrc_empty_text_size" format="dimension" />
     </declare-styleable>
 </resources>

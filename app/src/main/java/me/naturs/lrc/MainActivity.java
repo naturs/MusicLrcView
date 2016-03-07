@@ -12,6 +12,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
+import me.naturs.lrc.library.LrcParser;
 import me.naturs.lrc.library.LrcView;
 
 public class MainActivity extends AppCompatActivity {
@@ -86,15 +87,16 @@ public class MainActivity extends AppCompatActivity {
             e.printStackTrace();
         }
 
+        loadLrc();
+
     }
 
     public void loadLrc() {
         try {
-            BufferedReader br = new BufferedReader(new InputStreamReader(getResources().getAssets().open("1.lrc")));
+            mLrcView.setLrc(LrcParser.parse(getResources().getAssets().open("1.lrc")));
         } catch (IOException e) {
             e.printStackTrace();
         }
-        String line;
 
     }
 
@@ -109,8 +111,8 @@ public class MainActivity extends AppCompatActivity {
         @Override
         public void run() {
             mSeekBar.setProgress((int) (100f * mMediaPlayer.getCurrentPosition() / mMediaPlayer.getDuration()));
-
-            mLrcView.postDelayed(this, 1000);
+            mLrcView.update(mMediaPlayer.getCurrentPosition());
+            mLrcView.postDelayed(this, 100);
         }
     };
 }

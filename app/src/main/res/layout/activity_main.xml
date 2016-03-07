@@ -17,7 +17,8 @@
         android:paddingRight="24dp"
         app:lrc_current_text_color="@color/colorPrimary"
         app:lrc_divider_height="24dp"
-        app:lrc_text_size="14sp"/>
+        app:lrc_empty_text="暂无歌词"
+        app:lrc_text_size="34sp"/>
 
     <SeekBar
         android:id="@+id/seek_bar"
