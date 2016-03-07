@@ -9,12 +9,17 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.support.annotation.StringRes;
+import android.support.v4.view.GestureDetectorCompat;
+import android.support.v4.view.MotionEventCompat;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -73,6 +78,8 @@ public class LrcView extends View {
 
     private List<String> mTempList = new ArrayList<>();
 
+    private GestureDetectorCompat mGestureDetector;
+
     public LrcView(Context context) {
         this(context, null);
     }
@@ -129,6 +136,8 @@ public class LrcView extends View {
         mEmptyPaint.setTextSize(emptyTextSize);
         mEmptyPaint.setColor(emptyTextColor);
         mEmptyPaint.setTextAlign(Paint.Align.CENTER);
+
+        mGestureDetector = new GestureDetectorCompat(context, new LrcGestureListener(context));
     }
 
     @Override
@@ -206,8 +215,15 @@ public class LrcView extends View {
 //        print("draw 耗时：" + (System.currentTimeMillis() - start));
     }
 
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        return mGestureDetector.onTouchEvent(event);
+    }
+
     private float getCenterY() {
-        return mCenterY + mCenterDrawOffset;
+        float y = mCenterY;
+
+        return delta + delta1 + mCenterY + (delta == 0 ? mCenterDrawOffset : 0);
     }
 
     private int drawText(Canvas canvas, Paint paint, String text, float baseY) {
@@ -303,14 +319,17 @@ public class LrcView extends View {
     /**
      * 使用动画效果过渡到新的歌词行
      */
-    private void newLineWithAnimation(int oldIndex, int newIndex) {
+    private float newLineWithAnimation(int oldIndex, int newIndex) {
         if (mLyric == null) {
-            return;
+            return 0;
         }
         if (mScrollAnimator != null && mScrollAnimator.isRunning()) {
             mScrollAnimator.end();
         }
-        mScrollAnimator = ValueAnimator.ofFloat(mLyric.getDistance(oldIndex, newIndex), 0);
+
+        float distance = mLyric.getDistance(oldIndex, newIndex);
+
+        mScrollAnimator = ValueAnimator.ofFloat(distance, 0);
         mScrollAnimator.setDuration(500);
         mScrollAnimator.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
             @Override
@@ -327,6 +346,8 @@ public class LrcView extends View {
             }
         });
         mScrollAnimator.start();
+
+        return distance;
     }
 
     private void initLrcInternal() {
@@ -441,7 +462,7 @@ public class LrcView extends View {
         // 如果当前歌词没变会返回false
         if (mLyric.update(millisecond)) {
             int newIndex = mLyric.getCurrentIndex();
-            newLineWithAnimation(oldIndex, newIndex);
+            delta1 += newLineWithAnimation(oldIndex, newIndex);
         }
     }
 
@@ -489,6 +510,72 @@ public class LrcView extends View {
             return;
         }
         Log.d(TAG, message);
+    }
+
+    private float delta;
+    private float delta1;
+
+
+    private class LrcGestureListener implements GestureDetector.OnGestureListener {
+        private  boolean first;
+
+        private final int mTouchSlop;
+
+        public LrcGestureListener(Context context) {
+            final ViewConfiguration configuration = ViewConfiguration.get(context);
+            mTouchSlop = configuration.getScaledTouchSlop();
+        }
+
+        @Override
+        public boolean onDown(MotionEvent e) {
+//            delta = 0;
+            first = true;
+            return true;
+        }
+
+        @Override
+        public void onShowPress(MotionEvent e) {
+
+        }
+
+        @Override
+        public boolean onSingleTapUp(MotionEvent e) {
+            print("onSingleTapUp");
+            return false;
+        }
+
+        @Override
+        public boolean onScroll(MotionEvent e1, MotionEvent e2, float distanceX, float distanceY) {
+
+            if (first) {
+                print("first onScroll :" + distanceY);
+                first = false;
+                if (distanceY > 0) { // 向上
+                    if (distanceY > mTouchSlop) {
+                        distanceY = distanceY - mTouchSlop;
+                    }
+                } else { // 向下
+                    if (Math.abs(distanceY) > mTouchSlop) {
+                        distanceY = mTouchSlop - Math.abs(distanceY);
+                    }
+                }
+//                return true;
+            }
+            delta += -distanceY;
+            invalidate();
+//            print("onScroll：" + (distanceY ) );
+            return true;
+        }
+
+        @Override
+        public void onLongPress(MotionEvent e) {
+            print("onLongPress");
+        }
+
+        @Override
+        public boolean onFling(MotionEvent e1, MotionEvent e2, float velocityX, float velocityY) {
+            return false;
+        }
     }
 
 }
